@@ -67,7 +67,7 @@ func plotRun(files []string, threshold int, title, output string) error {
 		return err
 	}
 
-	out, err := file(output, true)
+	out, err := fileWriter(output)
 	if err != nil {
 		return err
 	}

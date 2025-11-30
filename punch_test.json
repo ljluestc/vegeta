@@ -1,0 +1,2 @@
+{"method": "GET", "url": "http://httpbin.org/get", "header": {"Content-Type": ["application/json"]}}
+{"method": "POST", "url": "http://httpbin.org/post", "body": "{"test": "data"}"}

@@ -69,7 +69,7 @@ func report(files []string, typ, output string, every time.Duration, bucketsStr 
 		return err
 	}
 
-	out, err := file(output, true)
+	out, err := fileWriter(output)
 	if err != nil {
 		return err
 	}

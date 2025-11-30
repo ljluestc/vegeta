@@ -1,0 +1,6 @@
+# Test endpoints for vegeta punch
+GET http://httpbin.org/get
+GET http://httpbin.org/user-agent
+POST http://httpbin.org/post
+PUT http://httpbin.org/put
+GET http://httpbin.org/status/500

@@ -1,0 +1,2 @@
+GET http://httpbin.org/get
+POST http://httpbin.org/post

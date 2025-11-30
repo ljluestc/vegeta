@@ -134,7 +134,7 @@ func attack(opts *attackOpts) (err error) {
 		if filename == "" {
 			continue
 		}
-		f, err := file(filename, false)
+		f, err := fileReader(filename)
 		if err != nil {
 			return fmt.Errorf("error opening %s: %s", filename, err)
 		}
@@ -174,7 +174,7 @@ func attack(opts *attackOpts) (err error) {
 		tr = vegeta.NewStaticTargeter(targets...)
 	}
 
-	out, err := file(opts.outputf, true)
+	out, err := fileWriter(opts.outputf)
 	if err != nil {
 		return fmt.Errorf("error opening %s: %s", opts.outputf, err)
 	}

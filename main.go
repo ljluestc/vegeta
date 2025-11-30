@@ -18,6 +18,7 @@ func main() {
 		"plot":   plotCmd(),
 		"encode": encodeCmd(),
 		"dump":   dumpCmd(),
+		"punch":  punchCmd(),
 	}
 
 	fs := flag.NewFlagSet("vegeta", flag.ExitOnError)
