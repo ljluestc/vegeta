@@ -307,3 +307,107 @@ func (p LinearPacer) hits(t time.Duration) float64 {
 
 	return (a*math.Pow(x, 2))/2 + b*x
 }
+
+type RampUpPacer struct {
+	Target Rate
+	RampUp time.Duration
+}
+
+var _ Pacer = RampUpPacer{}
+
+func (p RampUpPacer) invalid() bool {
+	return p.RampUp < 0 || p.Target.Per < 0 || p.Target.Freq < 0
+}
+
+func (p RampUpPacer) Pace(elapsed time.Duration, hits uint64) (time.Duration, bool) {
+	switch {
+	case p.invalid():
+		return 0, true
+	case p.Target.Per == 0 || p.Target.Freq == 0:
+		return 0, false
+	case p.RampUp <= 0:
+		return ConstantPacer(p.Target).Pace(elapsed, hits)
+	}
+
+	expectedHits := p.hits(elapsed)
+	if hits < uint64(expectedHits) {
+		return 0, false
+	}
+
+	nextAtSeconds := p.timeForHit(float64(hits + 1))
+	if nextAtSeconds > float64(math.MaxInt64)/1e9 {
+		return 0, true
+	}
+
+	wait := time.Duration(nextAtSeconds*1e9) - elapsed
+	if wait < 0 {
+		wait = 0
+	}
+	return wait, false
+}
+
+func (p RampUpPacer) Rate(elapsed time.Duration) float64 {
+	switch {
+	case p.Target.Per == 0 || p.Target.Freq == 0:
+		return math.Inf(1)
+	case p.invalid():
+		return 0
+	}
+
+	target := p.Target.hitsPerNs() * 1e9
+	if p.RampUp <= 0 {
+		return target
+	}
+	if elapsed <= 0 {
+		return 0
+	}
+	if elapsed >= p.RampUp {
+		return target
+	}
+	return target * (elapsed.Seconds() / p.RampUp.Seconds())
+}
+
+func (p RampUpPacer) hits(t time.Duration) float64 {
+	if t <= 0 || p.invalid() {
+		return 0
+	}
+	if p.Target.Per == 0 || p.Target.Freq == 0 {
+		return math.Inf(1)
+	}
+
+	R := p.Target.hitsPerNs() * 1e9
+	x := t.Seconds()
+	T := p.RampUp.Seconds()
+
+	if p.RampUp <= 0 {
+		return R * x
+	}
+	if x <= T {
+		return (R * x * x) / (2 * T)
+	}
+	return R * (x - T/2)
+}
+
+func (p RampUpPacer) timeForHit(n float64) float64 {
+	if n <= 0 || p.invalid() {
+		return 0
+	}
+	if p.Target.Per == 0 || p.Target.Freq == 0 {
+		return 0
+	}
+	if p.RampUp <= 0 {
+		return n / (p.Target.hitsPerNs() * 1e9)
+	}
+
+	R := p.Target.hitsPerNs() * 1e9
+	T := p.RampUp.Seconds()
+	if R <= 0 || T <= 0 {
+		return 0
+	}
+
+	hRamp := (R * T) / 2
+	if n <= hRamp {
+		return math.Sqrt((2 * T * n) / R)
+	}
+	return (n / R) + (T / 2)
+}

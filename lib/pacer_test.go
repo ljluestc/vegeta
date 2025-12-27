@@ -426,3 +426,76 @@ func TestLinearPacer_Rate(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRampUpPacer_Rate(t *testing.T) {
+	t.Parallel()
+
+	p := RampUpPacer{Target: Rate{Freq: 10, Per: time.Second}, RampUp: 10 * time.Second}
+
+	for _, tc := range []struct {
+		elapsed time.Duration
+		rate    float64
+	}{
+		{elapsed: 0, rate: 0},
+		{elapsed: 5 * time.Second, rate: 5},
+		{elapsed: 10 * time.Second, rate: 10},
+		{elapsed: 20 * time.Second, rate: 10},
+	} {
+		if have, want := p.Rate(tc.elapsed), tc.rate; !floatEqual(have, want) {
+			t.Errorf("%+v.Rate(%s): have %f, want %f", p, tc.elapsed, have, want)
+		}
+	}
+}
+
+func TestRampUpPacer_Pace(t *testing.T) {
+	t.Parallel()
+
+	p := RampUpPacer{Target: Rate{Freq: 10, Per: time.Second}, RampUp: 10 * time.Second}
+
+	// During ramp: H(t)= (R*t^2)/(2*T) = t^2/2 where t in seconds.
+	// So hit #1 at t=sqrt(2/10*10)=sqrt(2)?? For this configuration: H(t)=t^2/2 => t=sqrt(2n)
+	// hit #1 at 1.414s, hit #5 at 3.162s, hit #50 at 10s.
+	for _, tc := range []struct {
+		elapsed time.Duration
+		hits    uint64
+		wait    time.Duration
+	}{
+		{elapsed: 0, hits: 0, wait: time.Duration(math.Sqrt(2) * float64(time.Second))},
+		{elapsed: 3 * time.Second, hits: 4, wait: time.Duration((math.Sqrt(10)-3) * float64(time.Second))},
+		// Exactly at the ramp boundary with 50 hits already sent, next should be 0.1s later.
+		{elapsed: 10 * time.Second, hits: 50, wait: 100 * time.Millisecond},
+		// Post-ramp: constant 10 rps.
+		{elapsed: 12 * time.Second, hits: 70, wait: 100 * time.Millisecond},
+	} {
+		wait, stop := p.Pace(tc.elapsed, tc.hits)
+		if stop {
+			t.Fatalf("unexpected stop for %+v at elapsed=%s hits=%d", p, tc.elapsed, tc.hits)
+		}
+		if !durationEqual(wait, tc.wait) {
+			t.Fatalf("%+v.Pace(%s, %d) = %s; want %s", p, tc.elapsed, tc.hits, wait, tc.wait)
+		}
+	}
+}
+
+func TestRampUpPacer_DisabledEqualsConstant(t *testing.T) {
+	t.Parallel()
+
+	target := Rate{Freq: 10, Per: time.Second}
+	cp := ConstantPacer(target)
+	rp := RampUpPacer{Target: target, RampUp: 0}
+
+	for _, tc := range []struct {
+		elapsed time.Duration
+		hits    uint64
+	}{
+		{elapsed: 0, hits: 0},
+		{elapsed: time.Second, hits: 1},
+		{elapsed: 5 * time.Second, hits: 50},
+	} {
+		w1, s1 := cp.Pace(tc.elapsed, tc.hits)
+		w2, s2 := rp.Pace(tc.elapsed, tc.hits)
+		if !durationEqual(w1, w2) || s1 != s2 {
+			t.Fatalf("Pace mismatch constant vs ramp-disabled at elapsed=%s hits=%d: (%s,%t) vs (%s,%t)", tc.elapsed, tc.hits, w1, s1, w2, s2)
+		}
+	}
+}

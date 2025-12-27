@@ -54,6 +54,7 @@ func attackCmd() command {
 	fs.IntVar(&opts.redirects, "redirects", vegeta.DefaultRedirects, "Number of redirects to follow. -1 will not follow but marks as success")
 	fs.Var(&maxBodyFlag{&opts.maxBody}, "max-body", "Maximum number of bytes to capture from response bodies. [-1 = no limit]")
 	fs.Var(&rateFlag{&opts.rate}, "rate", "Number of requests per time unit [0 = infinity]")
+	fs.DurationVar(&opts.rampUpDuration, "ramp-up-duration", 0, "Duration over which the request rate ramps up from 0 to -rate [0 = disabled]")
 	fs.Var(&opts.headers, "header", "Request header")
 	fs.Var(&opts.proxyHeaders, "proxy-header", "Proxy CONNECT header")
 	fs.Var(&opts.laddr, "laddr", "Local IP address")
@@ -94,6 +95,7 @@ type attackOpts struct {
 	duration       time.Duration
 	timeout        time.Duration
 	rate           vegeta.Rate
+	rampUpDuration time.Duration
 	workers        uint64
 	maxWorkers     uint64
 	connections    int
@@ -224,7 +226,12 @@ func attack(opts *attackOpts) (err error) {
 		vegeta.SessionTickets(opts.sessionTickets),
 	)
 
-	res := atk.Attack(tr, opts.rate, opts.duration, opts.name)
+	var pacer vegeta.Pacer = opts.rate
+	if opts.rampUpDuration > 0 {
+		pacer = vegeta.RampUpPacer{Target: opts.rate, RampUp: opts.rampUpDuration}
+	}
+
+	res := atk.Attack(tr, pacer, opts.duration, opts.name)
 	enc := vegeta.NewEncoder(out)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
