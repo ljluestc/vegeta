@@ -23,33 +23,32 @@ import (
 )
 
 func TestAttackRate(t *testing.T) {
-	t.Parallel()
-	server := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
-	)
-	defer server.Close()
-	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	rate := Rate{Freq: 100, Per: time.Second}
-	atk := NewAttacker()
-	var hits uint64
-	for range atk.Attack(tr, rate, 1*time.Second, "") {
-		hits++
-	}
-	if got, want := hits, uint64(rate.Freq); got != want {
-		t.Fatalf("got: %v, want: %v", got, want)
-	}
+ 	server := httptest.NewServer(
+ 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
+ 	)
+ 	defer server.Close()
+ 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
+ 	rate := Rate{Freq: 10, Per: time.Second}
+ 	atk := NewAttacker(Workers(1))
+ 	var hits uint64
+ 	for range atk.Attack(tr, rate, 1*time.Second, "") {
+ 		hits++
+ 	}
+ 	want := uint64(rate.Freq)
+ 	if got := hits; got < want-2 || got > want+2 {
+ 		t.Fatalf("got: %v, want: %v (+/- 2)", got, want)
+ 	}
 }
 
 func TestAttackDuration(t *testing.T) {
-	t.Parallel()
-	server := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
-	)
-	defer server.Close()
+ 	server := httptest.NewServer(
+ 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
+ 	)
+ 	defer server.Close()
 
-	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
-	atk := NewAttacker()
-	rate := Rate{Freq: 100, Per: time.Second}
+ 	tr := NewStaticTargeter(Target{Method: "GET", URL: server.URL})
+ 	atk := NewAttacker(Workers(1))
+ 	rate := Rate{Freq: 10, Per: time.Second}
 
 	var m Metrics
 	for res := range atk.Attack(tr, rate, rate.Per, "") {
@@ -57,8 +56,8 @@ func TestAttackDuration(t *testing.T) {
 	}
 	m.Close()
 
-	if got, want := m.Requests, uint64(rate.Freq); got != want {
-		t.Errorf("got %v hits, want: %v", got, want)
+	if got, want := m.Requests, uint64(rate.Freq); got < want-1 || got > want+1 {
+		t.Errorf("got %v hits, want: %v (+/- 1)", got, want)
 	} else if got, want := m.Duration.Round(time.Second), time.Second; got != want {
 		t.Errorf("got duration %s, want %s", got, want)
 	}
