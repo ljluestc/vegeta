@@ -136,6 +136,8 @@ attack command:
     	Proxy CONNECT header
   -rate value
     	Number of requests per time unit [0 = infinity] (default 50/1s)
+  -ramp-up-duration duration
+    	Duration over which the request rate ramps up from 0 to -rate [0 = disabled]
   -redirects int
     	Number of redirects to follow. -1 will not follow but marks as success (default 10)
   -resolvers value
@@ -383,6 +385,21 @@ requests serially (i.e. waiting for a response before sending the next request).
 
 Setting `-max-workers` to a very high number while setting `-rate=0` can result in
 vegeta consuming too many resources and crashing. Use with care.
+
+#### `-ramp-up-duration`
+
+Specifies the duration over which the request rate ramps linearly from 0 to the
+target `-rate`. After the ramp-up period finishes, the attack sustains the target
+rate for the remainder of `-duration`.
+
+Use this to avoid sudden load spikes, allow your system to warm up (e.g. caches),
+and produce more realistic traffic patterns.
+
+Example:
+
+```console
+echo "GET http://localhost/" | vegeta attack -rate=200/1s -ramp-up-duration=30s -duration=2m | vegeta report
+```
 
 #### `-redirects`
 
